@@ -9,7 +9,7 @@ type Tab = "selection" | "edited" | "raw";
 type Lazy = { files: Photo[] | null; loading: boolean; error: string };
 
 type Props = {
-  date: string;
+  sid: string;
   selection: Photo[];
   hasRaw: boolean;
   hasEdited: boolean;
@@ -17,7 +17,7 @@ type Props = {
 };
 
 /** Galeri pemilik: pilihan client (langsung), hasil edit dan foto asli (diminta saat tab dibuka). */
-export default function OwnerGallery({ date, selection, hasRaw, hasEdited, defaultTab }: Props) {
+export default function OwnerGallery({ sid, selection, hasRaw, hasEdited, defaultTab }: Props) {
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [lazy, setLazy] = useState<Record<"raw" | "edited", Lazy>>({
     raw: { files: null, loading: false, error: "" },
@@ -29,7 +29,7 @@ export default function OwnerGallery({ date, selection, hasRaw, hasEdited, defau
   async function load(kind: "raw" | "edited") {
     setLazy((l) => ({ ...l, [kind]: { files: null, loading: true, error: "" } }));
     try {
-      const res = await listSessionPhotos(date, kind);
+      const res = await listSessionPhotos(sid, kind);
       setLazy((l) => ({ ...l, [kind]: res.ok ? { files: res.files, loading: false, error: "" } : { files: null, loading: false, error: res.error } }));
     } catch {
       setLazy((l) => ({ ...l, [kind]: { files: null, loading: false, error: "Foto belum bisa dimuat. Coba lagi sebentar lagi." } }));
@@ -78,7 +78,7 @@ export default function OwnerGallery({ date, selection, hasRaw, hasEdited, defau
         ) : st.files && st.files.length === 0 ? (
           <p className="lede">Folder ini belum berisi foto.</p>
         ) : st.files ? (
-          <PhotoGallery date={date} files={st.files} mode="view" initialSelected={kind === "raw" ? selectedIds : []} download />
+          <PhotoGallery sid={sid} files={st.files} mode="view" initialSelected={kind === "raw" ? selectedIds : []} download />
         ) : null}
       </div>
     );
@@ -114,7 +114,7 @@ export default function OwnerGallery({ date, selection, hasRaw, hasEdited, defau
               <button type="button" className="btn ghost" onClick={copyNames}>{copied ? "Tersalin" : "Salin nama file"}</button>
             </div>
             {hasRaw ? (
-              <PhotoGallery date={date} files={selection} mode="view" initialSelected={selectedIds} download />
+              <PhotoGallery sid={sid} files={selection} mode="view" initialSelected={selectedIds} download />
             ) : (
               <ul className="selnames">{selection.map((s) => <li key={s.id}>{s.name}</li>)}</ul>
             )}

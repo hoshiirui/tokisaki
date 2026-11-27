@@ -15,27 +15,17 @@ export type PublicDay = {
   showInfo: boolean;
 };
 
-/** Sesi milik satu client, hanya berisi hal yang boleh dilihat client itu sendiri. */
-export type MyBooking = {
+/** Sesi yang dikirim ke pemilik untuk kalender. Satu tanggal bisa punya beberapa sesi. */
+export type OwnerSession = {
+  id: string;
   date: string;
-  info: string;
-  time: string;
-  location: string;
-};
-
-/** Data yang hanya dikirim ke pemilik. */
-export type PrivateDay = {
-  date: string;
+  title: string;
   client: string;
-  clientEmail: string;
   contact: string;
   time: string;
   location: string;
   notes: string;
   docUrl: string;
-  driveFolderId: string;
-  editedFolderId: string;
-  maxSelect: number;
-  stage: "" | "proses" | "selesai";
-  selection: { id: string; name: string }[];
+  claimCode: string;
+  memberCount: number;
 };

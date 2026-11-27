@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 import { shortDate } from "@/lib/dates";
 
 export type OwnerItem = {
+  id: string;
   date: string;
   title: string;
   clientName: string;
-  clientEmail: string;
+  memberCount: number;
   location: string;
   status: "upcoming" | "preparing" | "choose" | "processing" | "done";
   selectionCount: number;
@@ -54,7 +55,7 @@ export default function OwnerPortalList({ items, today }: { items: OwnerItem[]; 
       if (from && x.date < from) return false;
       if (to && x.date > to) return false;
       if (!needle) return true;
-      return [x.title, x.clientName, x.clientEmail, x.location, x.date, shortDate(x.date)]
+      return [x.title, x.clientName, x.location, x.date, shortDate(x.date)]
         .join(" ")
         .toLowerCase()
         .includes(needle);
@@ -103,7 +104,7 @@ export default function OwnerPortalList({ items, today }: { items: OwnerItem[]; 
           <input
             id="o-q"
             type="text"
-            placeholder="Nama client, email, judul sesi, lokasi, tanggal"
+            placeholder="Nama client, judul sesi, lokasi, tanggal"
             value={q}
             onChange={(e) => { setQ(e.target.value); setLimit(PAGE); }}
           />
@@ -163,13 +164,13 @@ export default function OwnerPortalList({ items, today }: { items: OwnerItem[]; 
       ) : (
         <ul className="orows">
           {shown.slice(0, limit).map((x) => (
-            <li key={x.date}>
-              <Link href={`/client-portal/${x.date}`} className="orow">
+            <li key={x.id}>
+              <Link href={`/client-portal/${x.id}`} className="orow">
                 <span className="orow-date">{shortDate(x.date)}<small>{x.date.slice(0, 4)}</small></span>
                 <span className="orow-main">
                   <strong>{x.title || "Sesi foto"}</strong>
                   <span className="muted">
-                    {[x.clientName, x.clientEmail, x.location].filter(Boolean).join(" · ") || "Belum ada data client"}
+                    {[x.clientName, x.location, x.memberCount ? `${x.memberCount} orang terhubung` : "belum diklaim"].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <span className="orow-pick" title="Foto yang dipilih client">

@@ -6,14 +6,14 @@ import { saveSessionAdmin } from "@/app/portal-actions";
 import { driveFolderUrl } from "@/lib/dates";
 
 type Props = {
-  date: string;
+  id: string;
   stage: "" | "proses" | "selesai";
   driveFolderId: string;
   editedFolderId: string;
   maxSelect: number;
 };
 
-export default function OwnerSessionPanel({ date, stage, driveFolderId, editedFolderId, maxSelect }: Props) {
+export default function OwnerSessionPanel({ id, stage, driveFolderId, editedFolderId, maxSelect }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export default function OwnerSessionPanel({ date, stage, driveFolderId, editedFo
     startTransition(async () => {
       try {
         const res = await saveSessionAdmin({
-          date,
+          id,
           stage: text("stage") as Props["stage"],
           driveFolder: text("driveFolder"),
           editedFolder: text("editedFolder"),

@@ -1,7 +1,6 @@
 import { auth, isOwner } from "@/auth";
 import { fetchMedia, fetchThumbnail, getFileMeta } from "@/lib/drive";
-import { isValidKey } from "@/lib/dates";
-import { getAccessRow } from "@/lib/portal";
+import { getAccessRow, isMember, isSessionId } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -11,24 +10,24 @@ const notFound = () => new Response("Tidak ditemukan", { status: 404 });
  * Menyajikan foto dari Google Drive lewat server. Foto tidak pernah dibuat publik di Drive.
  * Akses diberikan hanya jika:
  *  1. pengunjung login,
- *  2. pengunjung adalah pemilik studio atau client yang email-nya tercatat di sesi itu,
+ *  2. pengunjung adalah pemilik studio atau anggota sesi itu,
  *  3. file benar-benar berada di folder sesi tersebut,
  *  4. foto hasil edit baru terbuka untuk client setelah sesi berstatus Selesai.
  */
 export async function GET(req: Request, ctx: { params: Promise<{ fileId: string }> }) {
   const { fileId } = await ctx.params;
   const url = new URL(req.url);
-  const date = url.searchParams.get("date") ?? "";
-  if (!isValidKey(date)) return notFound();
+  const sessionId = url.searchParams.get("session") ?? "";
+  if (!isSessionId(sessionId)) return notFound();
 
   const session = await auth();
   const email = session?.user?.email?.toLowerCase();
   if (!email) return new Response("Silakan login", { status: 401 });
 
   try {
-    const row = await getAccessRow(date);
+    const row = await getAccessRow(sessionId);
     const owner = await isOwner();
-    if (!row || (!owner && row.clientEmail.toLowerCase() !== email)) return notFound();
+    if (!row || (!owner && !(await isMember(sessionId, email)))) return notFound();
 
     const meta = await getFileMeta(fileId);
     if (!meta) return notFound();

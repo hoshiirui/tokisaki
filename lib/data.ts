@@ -1,7 +1,7 @@
 import "server-only";
 import { supabase } from "@/lib/supabase";
 import { key } from "@/lib/dates";
-import type { MyBooking, PrivateDay, PublicDay, Settings } from "@/lib/types";
+import type { OwnerSession, PublicDay, Settings } from "@/lib/types";
 
 export const DEFAULT_SETTINGS: Settings = {
   studio: "Studio Foto",
@@ -58,72 +58,31 @@ export async function getPublicDays(owner: boolean): Promise<PublicDay[]> {
   });
 }
 
-/**
- * Sesi milik satu client, dicari lewat email Google dari sesi login (bukan dari input pengunjung).
- * Hanya mengembalikan tanggal, info sesi, jam, dan lokasi. Catatan, kontak, dan tautan planning tidak ikut.
- */
-export async function getMyBookings(email: string): Promise<MyBooking[]> {
-  const db = supabase();
-  const { data: rows, error } = await db
-    .from("booking_private")
-    .select("date,session_time,location")
-    .eq("client_email", email.trim().toLowerCase())
-    .order("date");
-  if (error) throw new Error(`Gagal membaca booking client: ${error.message}`);
-  const mine = (rows ?? []) as Record<string, unknown>[];
-  if (!mine.length) return [];
-
-  const { data: booked, error: err2 } = await db
-    .from("bookings")
-    .select("date,status,public_info")
-    .in("date", mine.map((r) => String(r.date)));
-  if (err2) throw new Error(`Gagal membaca booking client: ${err2.message}`);
-  const info = new Map(
-    ((booked ?? []) as Record<string, unknown>[])
-      .filter((b) => b.status === "booked")
-      .map((b) => [String(b.date), String(b.public_info ?? "")]),
-  );
-
-  // Hanya tanggal yang statusnya masih Terbooking.
-  return mine
-    .filter((r) => info.has(String(r.date)))
-    .map((r) => ({
-      date: String(r.date),
-      info: info.get(String(r.date)) ?? "",
-      time: String(r.session_time ?? ""),
-      location: String(r.location ?? ""),
-    }));
-}
-
 /** Hanya boleh dipanggil setelah isOwner() bernilai true. */
-export async function getPrivateDays(): Promise<PrivateDay[]> {
+export async function getOwnerSessions(): Promise<OwnerSession[]> {
   const { from, to } = windowRange();
   const { data, error } = await supabase()
-    .from("booking_private")
-    .select(
-      "date,client,client_email,contact,session_time,location,notes,doc_url,drive_folder_id,edited_folder_id,max_select,stage,selection",
-    )
+    .from("sessions")
+    .select("id,date,title,client,contact,session_time,location,notes,doc_url,claim_code,created_at,session_members(count)")
     .gte("date", from)
     .lte("date", to)
-    .order("date");
-  if (error) throw new Error(`Gagal membaca detail privat: ${error.message}`);
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
-    date: String(r.date),
-    client: String(r.client ?? ""),
-    clientEmail: String(r.client_email ?? ""),
-    contact: String(r.contact ?? ""),
-    time: String(r.session_time ?? ""),
-    location: String(r.location ?? ""),
-    notes: String(r.notes ?? ""),
-    docUrl: String(r.doc_url ?? ""),
-    driveFolderId: String(r.drive_folder_id ?? ""),
-    editedFolderId: String(r.edited_folder_id ?? ""),
-    maxSelect: Number(r.max_select) > 0 ? Number(r.max_select) : 20,
-    stage: r.stage === "proses" || r.stage === "selesai" ? r.stage : "",
-    selection: Array.isArray(r.selection)
-      ? (r.selection as Record<string, unknown>[])
-          .filter((x) => typeof x?.id === "string" && typeof x?.name === "string")
-          .map((x) => ({ id: String(x.id), name: String(x.name) }))
-      : [],
-  }));
+    .order("date")
+    .order("created_at");
+  if (error) throw new Error(`Gagal membaca sesi: ${error.message}`);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => {
+    const m = r.session_members as { count?: number }[] | undefined;
+    return {
+      id: String(r.id),
+      date: String(r.date),
+      title: String(r.title ?? ""),
+      client: String(r.client ?? ""),
+      contact: String(r.contact ?? ""),
+      time: String(r.session_time ?? ""),
+      location: String(r.location ?? ""),
+      notes: String(r.notes ?? ""),
+      docUrl: String(r.doc_url ?? ""),
+      claimCode: String(r.claim_code ?? ""),
+      memberCount: Array.isArray(m) && m[0]?.count ? Number(m[0].count) : 0,
+    } satisfies OwnerSession;
+  });
 }

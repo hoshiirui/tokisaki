@@ -1,6 +1,6 @@
 import { isOwner } from "@/auth";
 import CalendarApp from "@/components/CalendarApp";
-import { getPrivateDays, getPublicDays, getSettings } from "@/lib/data";
+import { getOwnerSessions, getPublicDays, getSettings } from "@/lib/data";
 
 // Status booking berubah kapan saja, jadi halaman selalu dibuat ulang per permintaan.
 export const dynamic = "force-dynamic";
@@ -10,12 +10,12 @@ export default async function KalenderPage() {
 
   let data;
   try {
-    const [settings, days, privates] = await Promise.all([
+    const [settings, days, sessions] = await Promise.all([
       getSettings(),
       getPublicDays(owner),
-      owner ? getPrivateDays() : Promise.resolve(null),
+      owner ? getOwnerSessions() : Promise.resolve(null),
     ]);
-    data = { settings, days, privates };
+    data = { settings, days, sessions };
   } catch (err) {
     console.error(err);
     return (
@@ -29,5 +29,5 @@ export default async function KalenderPage() {
     );
   }
 
-  return <CalendarApp settings={data.settings} days={data.days} privates={data.privates} isOwner={owner} />;
+  return <CalendarApp settings={data.settings} days={data.days} sessions={data.sessions} isOwner={owner} />;
 }

@@ -8,7 +8,7 @@ type Photo = { id: string; name: string };
 type Tab = "edited" | "raw";
 
 type Props = {
-  date: string;
+  sid: string;
   edited: Photo[];
   editedFailed: boolean;
   selectedIds: string[];
@@ -19,7 +19,7 @@ type Props = {
  * Sesi Selesai: tab Hasil edit (langsung dimuat) dan Foto asli (daftar dan thumbnail
  * baru diminta ke server saat tab dibuka pertama kali).
  */
-export default function SessionTabs({ date, edited, editedFailed, selectedIds, hasRaw }: Props) {
+export default function SessionTabs({ sid, edited, editedFailed, selectedIds, hasRaw }: Props) {
   const [tab, setTab] = useState<Tab>("edited");
   const [raw, setRaw] = useState<Photo[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function SessionTabs({ date, edited, editedFailed, selectedIds, h
     setLoading(true);
     setError("");
     try {
-      const res = await listRawPhotos(date);
+      const res = await listRawPhotos(sid);
       if (res.ok) setRaw(res.files);
       else setError(res.error);
     } catch {
@@ -87,7 +87,7 @@ export default function SessionTabs({ date, edited, editedFailed, selectedIds, h
         ) : edited.length === 0 ? (
           <p className="lede">Foto hasil edit belum tersedia.</p>
         ) : (
-          <PhotoGallery date={date} files={edited} mode="edited" />
+          <PhotoGallery sid={sid} files={edited} mode="edited" />
         )}
       </div>
 
@@ -103,7 +103,7 @@ export default function SessionTabs({ date, edited, editedFailed, selectedIds, h
           ) : raw && raw.length === 0 ? (
             <p className="lede">Belum ada foto asli di folder sesi ini.</p>
           ) : raw ? (
-            <PhotoGallery date={date} files={raw} mode="view" initialSelected={selectedIds} download />
+            <PhotoGallery sid={sid} files={raw} mode="view" initialSelected={selectedIds} download />
           ) : null}
         </div>
       ) : null}

@@ -7,7 +7,8 @@ Website kalender booking untuk fotografer, dibuat dengan Next.js (App Router). C
 - **Client**: kalender dengan status Tersedia, Terbooking, dan Tidak tersedia. Klik tanggal terbooking hanya menampilkan info singkat yang kamu tulis.
 - **Pemilik**: klik tanggal untuk mengubah status, menulis info untuk client, mengisi detail sesi (nama client, kontak, jam, lokasi, catatan), dan menempel tautan Google Docs untuk planning.
 - Info singkat yang kamu sembunyikan dari client dikosongkan di server, jadi tidak ikut terkirim ke browser client.
-- Detail privat dan tautan planning hanya dibaca server jika sesi login cocok dengan `OWNER_EMAIL`.
+- Satu tanggal bisa punya beberapa sesi (misalnya tiga client wisuda di hari yang sama), dan satu sesi bisa dimiliki beberapa orang.
+- Detail sesi dan tautan planning hanya dibaca server jika sesi login cocok dengan `OWNER_EMAIL`.
 - Semua tabel dikunci dengan Row Level Security. Browser tidak punya akses langsung ke database; semua lewat server Next.js.
 
 ## Pengaturan awal
@@ -51,13 +52,20 @@ npm run dev
 
 Buka http://localhost:3000. Klik **Masuk pemilik** di bagian bawah halaman, masuk dengan akun Google yang sama dengan `OWNER_EMAIL`, lalu buka **Pengaturan** untuk mengisi nama studio dan nomor WhatsApp.
 
-## Login client
+## Sesi, kode klaim, dan login client
 
 - Semua akun Google dengan email terverifikasi bisa masuk lewat menu **Login**. Hak pemilik tetap hanya untuk akun yang cocok dengan `OWNER_EMAIL`.
-- Di form tanggal (sisi pemilik), isi **Email Google client**. Saat client login dengan email itu, halaman Login menampilkan sesinya: tanggal, info sesi, jam, dan lokasi. Catatan, kontak, dan tautan planning tidak pernah ditampilkan ke client.
-- Hanya tanggal yang statusnya masih Terbooking yang muncul di akun client.
+- **Beberapa sesi per tanggal:** klik tanggal di kalender, atur status tanggal, lalu klik **Tambah sesi** sebanyak yang kamu perlukan. Tiap sesi punya judul, client, kontak, jam, lokasi, catatan, planning Google Docs, kode klaim, dan galerinya sendiri.
+- **Kode klaim:** tiap sesi otomatis punya kode (misalnya `K7M2-QX9P`). Bagikan ke client. Client membuka **Client Portal**, memasukkan kode di kotak **Punya kode sesi?**, dan sesi langsung masuk ke akunnya. Client tidak perlu memberi email.
+- **Satu sesi untuk beberapa orang:** semua orang yang memasukkan kode yang sama menjadi anggota sesi itu dan melihat sesi serta galeri yang sama. Pilihan foto berlaku bersama.
+- **Email (opsional):** di form sesi kamu boleh mengisi email Google client. Email itu langsung menjadi anggota tanpa perlu kode.
+- **Kelola akses:** di halaman detail sesi (Client Portal sisi pemilik) ada kode, daftar anggota, tombol **Hapus akses**, **Buat kode baru** (kode lama mati, anggota yang sudah klaim tetap punya akses), dan **Tambah** anggota lewat email.
+- **Keamanan kode:** kode 8 karakter acak. Percobaan salah dibatasi 8 kali per akun dalam 15 menit.
+- Menghapus sesi dari kalender juga menghapus pilihan dan daftar anggotanya. Foto di Google Drive tidak ikut terhapus.
 
-**Database yang sudah ada:** jalankan `supabase/upgrade-client-email.sql` sekali di SQL Editor Supabase untuk menambah kolom `client_email`. Database baru cukup memakai `schema.sql`.
+**Database baru:** cukup jalankan `supabase/schema.sql`.
+
+**Database lama (satu sesi per tanggal):** jalankan `supabase/upgrade-multi-session.sql` sekali di SQL Editor Supabase. Skrip ini memindahkan tiap baris `booking_private` menjadi satu sesi, memakai info tanggal sebagai judul sesi, menjadikan email client lama sebagai anggota, dan membuat kode klaim untuk semuanya. Tabel `booking_private` tidak dihapus sebagai cadangan. Jika database-mu lebih tua dari fitur Client Portal, jalankan dulu `upgrade-client-email.sql` dan `upgrade-client-portal.sql`. Jalankan skrip migrasi sekali saja, karena menjalankannya ulang akan menambahkan kembali email lama yang sudah kamu hapus dari anggota. Alamat halaman sesi berubah dari `/client-portal/TANGGAL` menjadi `/client-portal/ID`, jadi tautan lama tidak berlaku.
 
 **Google Cloud:** selama status aplikasi masih **Testing**, hanya test user yang bisa login. Agar client umum bisa masuk, buka **Google Auth Platform > Audience** lalu klik **Publish app**. Google bisa meminta kamu melengkapi halaman **Branding** (nama aplikasi, email kontak) lebih dulu. Karena aplikasi hanya meminta email dan profil dasar, biasanya tidak perlu verifikasi tambahan.
 
@@ -67,9 +75,9 @@ Foto disimpan di Google Drive kamu sendiri. Website membaca folder lewat Google 
 
 **Alur**
 1. Setelah sesi, buat folder untuk sesi itu di Drive dan unggah JPG ke sana lewat aplikasi Drive seperti biasa.
-2. Di form tanggal (sisi pemilik), bagian **Galeri client (Google Drive)**: tempel tautan folder foto, isi **Email Google client** (di bagian Detail sesi), dan atur **Maks. foto dipilih** (bawaan 20).
+2. Buka **Client Portal**, klik sesinya, lalu di **Atur sesi** tempel tautan folder foto dan atur **Maks. foto dipilih** (bawaan 20). Bagikan kode klaim sesi ke client.
 3. Client login, membuka **Client Portal**, memilih foto, lalu menekan **Kirim pilihan**. Pilihan dikunci dan status menjadi **Diproses**.
-4. Di form tanggal, kamu melihat daftar nama file pilihan client dan tombol **Salin nama file**.
+4. Di halaman detail sesi, tab **Pilihan client** menampilkan foto pilihan dan tombol **Salin nama file**.
 5. Setelah selesai mengedit, unggah hasilnya ke folder hasil edit di Drive, tempel tautannya di **Folder foto hasil edit**, lalu ubah **Tahap** menjadi **Selesai**. Client melihat bagian Foto hasil edit dan bisa mengunduhnya satu per satu.
 
 Status di kartu sesi: **Akan datang**, **Foto disiapkan** (sesi sudah lewat, folder belum ditautkan), **Pilih foto**, **Diproses**, **Selesai**.
@@ -82,9 +90,7 @@ Status di kartu sesi: **Akan datang**, **Foto disiapkan** (sesi sudah lewat, fol
 5. Di Google Drive, buat satu folder induk (misalnya "Galeri Client"), klik **Share**, tambahkan email service account sebagai **Viewer**. Semua subfolder di dalamnya otomatis ikut terbagi.
 6. Isi `STUDIO_TIMEZONE` (misalnya `Asia/Makassar`) agar "hari ini" di portal sesuai zona waktumu.
 
-**Database yang sudah ada:** jalankan `supabase/upgrade-client-portal.sql` di SQL Editor Supabase (setelah `upgrade-client-email.sql` jika belum pernah).
-
-**Keamanan:** setiap foto diperiksa di server. Pengunjung harus login, email-nya harus sama dengan email client yang tercatat di sesi itu (atau pemilik), dan file harus berada di folder sesi tersebut. Foto hasil edit baru terbuka untuk client setelah tahap Selesai. Foto JPG asli tetap bisa dilihat dan diunduh client di semua tahap setelah sesi, termasuk setelah memilih dan setelah hasil edit dikirim.
+**Keamanan:** setiap foto diperiksa di server. Pengunjung harus login, dan harus pemilik atau anggota sesi itu, dan file harus berada di folder sesi tersebut. Foto hasil edit baru terbuka untuk client setelah tahap Selesai. Foto JPG asli tetap bisa dilihat dan diunduh client di semua tahap setelah sesi, termasuk setelah memilih dan setelah hasil edit dikirim.
 
 **Catatan:** thumbnail dimuat bertahap saat di-scroll. Satu sesi dengan ratusan foto bisa terasa lebih lambat daripada layanan galeri khusus, dan foto asli dikirim lewat server sehingga ikut dibatasi batas ukuran respons dan transfer data hosting kamu.
 
@@ -112,9 +118,9 @@ Di luar Vercel (misalnya VPS), tambahkan juga `AUTH_TRUST_HOST=true`.
 ```
 app/page.tsx            Home (landing page)
 app/kalender/page.tsx   kalender (server): memuat data sesuai peran
-app/client-portal       daftar sesi client; /client-portal/[date] untuk pilih foto dan hasil edit
+app/client-portal       daftar sesi client; /client-portal/[id] untuk pilih foto dan hasil edit; klaim kode di halaman daftar
 app/api/drive/[fileId]  menyajikan foto dari Drive setelah cek akses
-app/portal-actions.ts   client mengirim pilihan foto
+app/portal-actions.ts   klaim kode, pilihan foto, kelola anggota dan kode (pemilik)
 lib/drive.ts            klien Google Drive (service account)
 lib/portal.ts           data sesi dan status
 app/pricelist, app/portfolio   kerangka halaman, isi menyusul

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DayStatus, PrivateDay, PublicDay, Settings } from "@/lib/types";
+import type { DayStatus, OwnerSession, PublicDay, Settings } from "@/lib/types";
 import { DOW, MONTHS, key, longDate, shortDate } from "@/lib/dates";
-import OwnerForm from "./OwnerForm";
+import OwnerDay from "./OwnerDay";
 import SettingsForm from "./SettingsForm";
 
 const LABEL: Record<DayStatus, string> = {
@@ -15,7 +15,7 @@ const LABEL: Record<DayStatus, string> = {
 type Props = {
   settings: Settings;
   days: PublicDay[];
-  privates: PrivateDay[] | null;
+  sessions: OwnerSession[] | null;
   isOwner: boolean;
 };
 
@@ -23,7 +23,7 @@ function dotClass(s: DayStatus) {
   return s === "available" ? "dot" : `dot ${s}`;
 }
 
-export default function CalendarApp({ settings, days, privates, isOwner }: Props) {
+export default function CalendarApp({ settings, days, sessions, isOwner }: Props) {
   // Tanggal "hari ini" dihitung di browser agar sesuai zona waktu pengunjung dan tidak memicu mismatch hydration.
   const [today, setToday] = useState<string | null>(null);
   const [view, setView] = useState<{ y: number; m: number } | null>(null);
@@ -45,7 +45,18 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
   }, [toast]);
 
   const dayMap = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
-  const privMap = useMemo(() => new Map((privates ?? []).map((p) => [p.date, p])), [privates]);
+  // Satu tanggal bisa punya beberapa sesi.
+  const sessionMap = useMemo(() => {
+    const m = new Map<string, OwnerSession[]>();
+    for (const x of sessions ?? []) m.set(x.date, [...(m.get(x.date) ?? []), x]);
+    return m;
+  }, [sessions]);
+
+  function sessionNames(list: OwnerSession[] | undefined): string {
+    if (!list?.length) return "";
+    const first = list[0].client || list[0].title;
+    return list.length > 1 ? `${first || "Sesi"} +${list.length - 1}` : first;
+  }
   const owner = isOwner && ownerMode;
 
   const statusOf = (k: string): DayStatus => dayMap.get(k)?.status ?? "available";
@@ -81,9 +92,9 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
       const k = key(view.y, view.m, d);
       const st = statusOf(k);
       const day = dayMap.get(k);
-      const priv = privMap.get(k);
+      const list = sessionMap.get(k);
       let label = LABEL[st];
-      if (owner && st !== "available") label = priv?.client || day?.info || LABEL[st];
+      if (owner && st !== "available") label = sessionNames(list) || day?.info || LABEL[st];
       const cls = ["cell", st, isPast(k) ? "past" : "", k === today ? "today" : ""].filter(Boolean).join(" ");
       cells.push(
         <button
@@ -98,7 +109,7 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
           <span className="state">
             <i className={dotClass(st)} />
             <span className="tag">{label}</span>
-            {owner && priv?.docUrl ? <span className="docmark">Docs</span> : null}
+            {owner && list?.some((x) => x.docUrl) ? <span className="docmark">Docs</span> : null}
           </span>
         </button>,
       );
@@ -168,24 +179,22 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
           <h2>Pilih tanggal</h2>
           <p>
             {owner
-              ? "Klik tanggal di kalender untuk mengatur status, info untuk client, detail privat, dan planning."
+              ? "Klik tanggal di kalender untuk mengatur status, info untuk client, dan sesi-sesi di tanggal itu."
               : "Klik tanggal di kalender untuk melihat apakah sesi masih tersedia."}
           </p>
         </div>
       );
     }
     if (!owner) return renderClientPanel(selected);
-    const day = dayMap.get(selected);
-    const priv = privMap.get(selected);
     return (
-      <OwnerForm
-        key={`${selected}|${JSON.stringify([day, priv])}`}
+      <OwnerDay
+        key={selected}
         date={selected}
-        day={day}
-        priv={priv}
+        day={dayMap.get(selected)}
+        sessions={sessionMap.get(selected) ?? []}
         defaultShow={settings.showInfoDefault}
         past={isPast(selected)}
-        onSaved={() => setToast(`Tersimpan: ${longDate(selected)}`)}
+        onToast={setToast}
       />
     );
   }
@@ -254,8 +263,8 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
               ) : (
                 <ul>
                   {upcoming.map((d) => {
-                    const p = privMap.get(d.date);
-                    const what = [p?.client, d.info].filter(Boolean).join(" · ") || "Terbooking";
+                    const list = sessionMap.get(d.date);
+                    const what = [sessionNames(list), d.info].filter(Boolean).join(" · ") || "Terbooking";
                     return (
                       <li key={d.date}>
                         <button
@@ -268,7 +277,7 @@ export default function CalendarApp({ settings, days, privates, isOwner }: Props
                         >
                           <span className="d">{shortDate(d.date)}</span>
                           <span className="w">{what}</span>
-                          {p?.docUrl ? <span className="docmark">Docs</span> : null}
+                          {list?.some((x) => x.docUrl) ? <span className="docmark">Docs</span> : null}
                         </button>
                       </li>
                     );

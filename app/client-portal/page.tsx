@@ -2,8 +2,9 @@ import Link from "next/link";
 import { auth, isOwner, signIn } from "@/auth";
 import { listImages } from "@/lib/drive";
 import { longDate, todayKeyIn } from "@/lib/dates";
+import ClaimSession from "@/components/ClaimSession";
 import OwnerPortalList, { type OwnerItem } from "@/components/OwnerPortalList";
-import { getClientSessionRows, getOwnerSessionRows, portalStatus, STATUS_LABEL, studioTimeZone, type SessionRow } from "@/lib/portal";
+import { getClientSessionRows, getOwnerSessionRows, portalStatus, STATUS_LABEL, studioTimeZone, type OwnerSessionRow, type SessionRow } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,10 @@ function SessionCard({ row, today, cover }: { row: SessionRow; today: string; co
   const status = portalStatus(row.date, today, Boolean(row.driveFolderId), row.stage);
   return (
     <li>
-      <Link href={`/client-portal/${row.date}`} className="scard">
+      <Link href={`/client-portal/${row.id}`} className="scard">
         <div className="scard-thumb">
           {cover ? (
-            <img src={`/api/drive/${cover}?date=${row.date}&s=640`} alt="" loading="lazy" />
+            <img src={`/api/drive/${cover}?session=${row.id}&s=640`} alt="" loading="lazy" />
           ) : (
             <span className="muted">Belum ada foto</span>
           )}
@@ -38,6 +39,7 @@ function SessionCard({ row, today, cover }: { row: SessionRow; today: string; co
           <p>{longDate(row.date)}</p>
           {row.location ? <p>{row.location}</p> : null}
           {row.clientName ? <p className="muted">{row.clientName}</p> : null}
+          {row.time ? <p className="muted">{row.time}</p> : null}
         </div>
       </Link>
     </li>
@@ -52,7 +54,7 @@ export default async function ClientPortalPage() {
     return (
       <main className="stub wrap">
         <h1>Client Portal</h1>
-        <p className="lede">Masuk dengan akun Google untuk melihat sesi dan memilih foto.</p>
+        <p className="lede">Masuk dengan akun Google untuk melihat sesi dan memilih foto. Kamu bisa menambahkan sesi dengan kode dari fotografer.</p>
         <form
           action={async () => {
             "use server";
@@ -66,7 +68,7 @@ export default async function ClientPortalPage() {
   }
 
   if (await isOwner()) {
-    let all: SessionRow[] = [];
+    let all: OwnerSessionRow[] = [];
     let ownerFailed = false;
     try {
       all = await getOwnerSessionRows();
@@ -76,10 +78,11 @@ export default async function ClientPortalPage() {
     }
     const todayKey = todayKeyIn(studioTimeZone());
     const items: OwnerItem[] = all.map((r) => ({
+      id: r.id,
       date: r.date,
       title: r.title,
       clientName: r.clientName,
-      clientEmail: r.clientEmail,
+      memberCount: r.memberCount,
       location: r.location,
       status: portalStatus(r.date, todayKey, Boolean(r.driveFolderId), r.stage),
       selectionCount: r.selection.length,
@@ -120,12 +123,14 @@ export default async function ClientPortalPage() {
     <main className="wrap portal">
       <h1>Client Portal</h1>
       <p className="lede">Masuk sebagai {email}.</p>
+      <ClaimSession prominent={!failed && rows.length === 0} />
 
       {failed ? (
         <p className="lede">Sesi belum bisa dimuat. Coba muat ulang beberapa saat lagi.</p>
       ) : rows.length === 0 ? (
         <p className="lede">
-          Belum ada sesi untuk akun ini. Jika kamu sudah booking, minta studio mencatat email Google ini di booking-mu.
+          Belum ada sesi di akun ini. Masukkan kode sesi dari fotografer di atas. Jika kamu belum punya kodenya, tanyakan
+          ke fotografer.
         </p>
       ) : (
         <>
@@ -133,7 +138,7 @@ export default async function ClientPortalPage() {
             <section>
               <h2>Akan datang</h2>
               <ul className="scards">
-                {upcoming.map((x) => <SessionCard key={x.row.date} row={x.row} today={today} cover={x.cover} />)}
+                {upcoming.map((x) => <SessionCard key={x.row.id} row={x.row} today={today} cover={x.cover} />)}
               </ul>
             </section>
           ) : null}
@@ -141,7 +146,7 @@ export default async function ClientPortalPage() {
             <section>
               <h2>Sesi sebelumnya</h2>
               <ul className="scards">
-                {previous.map((x) => <SessionCard key={x.row.date} row={x.row} today={today} cover={x.cover} />)}
+                {previous.map((x) => <SessionCard key={x.row.id} row={x.row} today={today} cover={x.cover} />)}
               </ul>
             </section>
           ) : null}

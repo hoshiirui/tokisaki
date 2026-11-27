@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { auth, isOwner, signIn, signOut } from "@/auth";
-import { getMyBookings } from "@/lib/data";
 import { longDate } from "@/lib/dates";
-import type { MyBooking } from "@/lib/types";
+import { getClientSessionRows, type SessionRow } from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
@@ -47,10 +46,10 @@ export default async function LoginPage() {
     );
   }
 
-  let bookings: MyBooking[] = [];
+  let bookings: SessionRow[] = [];
   let failed = false;
   try {
-    bookings = await getMyBookings(email);
+    bookings = await getClientSessionRows(email);
   } catch (err) {
     console.error(err);
     failed = true;
@@ -64,23 +63,26 @@ export default async function LoginPage() {
         <p className="lede">Sesi belum bisa dimuat. Coba muat ulang beberapa saat lagi.</p>
       ) : bookings.length === 0 ? (
         <p className="lede">
-          Belum ada booking untuk akun ini. Jika kamu sudah booking, minta studio mencatat email Google ini di booking-mu.
+          Belum ada sesi di akun ini. Jika kamu sudah booking, masukkan kode sesi dari fotografer di Client Portal.
         </p>
       ) : (
         <ul className="mybookings">
           {bookings.map((b) => (
-            <li key={b.date}>
+            <li key={b.id}>
               <span className="when">{longDate(b.date)}</span>
-              {b.info ? <span className="what">{b.info}</span> : null}
+              {b.title ? <span className="what">{b.title}</span> : null}
               {b.time ? <span className="what">Jam: {b.time}</span> : null}
               {b.location ? <span className="what">Lokasi: {b.location}</span> : null}
             </li>
           ))}
         </ul>
       )}
-      <form action={signOutAction}>
-        <button type="submit" className="btn ghost">Keluar</button>
-      </form>
+      <div className="actions">
+        <Link href="/client-portal" className="btn accent">Buka Client Portal</Link>
+        <form action={signOutAction}>
+          <button type="submit" className="btn ghost">Keluar</button>
+        </form>
+      </div>
     </main>
   );
 }

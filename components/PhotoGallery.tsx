@@ -11,7 +11,8 @@ type View = { s: number; x: number; y: number };
 const FIT: View = { s: 1, x: 0, y: 0 };
 
 type Props = {
-  date: string;
+  /** ID sesi, dipakai untuk memeriksa akses saat foto diminta. */
+  sid: string;
   files: Photo[];
   /** select: client memilih; view: hanya melihat (pilihan ditandai); edited: foto hasil edit */
   mode: "select" | "view" | "edited";
@@ -21,7 +22,7 @@ type Props = {
   download?: boolean;
 };
 
-export default function PhotoGallery({ date, files, mode, initialSelected = [], max = 20, download = false }: Props) {
+export default function PhotoGallery({ sid, files, mode, initialSelected = [], max = 20, download = false }: Props) {
   const [selected, setSelected] = useState<string[]>(initialSelected);
   const [zoom, setZoom] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -144,7 +145,7 @@ export default function PhotoGallery({ date, files, mode, initialSelected = [], 
     setHiRes(false);
   }, [zoom, setView]);
 
-  const src = (id: string, size?: number) => `/api/drive/${id}?date=${date}${size ? `&s=${size}` : ""}`;
+  const src = (id: string, size?: number) => `/api/drive/${id}?session=${sid}${size ? `&s=${size}` : ""}`;
 
   function toggle(id: string) {
     setError("");
@@ -181,7 +182,7 @@ export default function PhotoGallery({ date, files, mode, initialSelected = [], 
     setError("");
     startTransition(async () => {
       try {
-        const res = await saveSelection(date, selected);
+        const res = await saveSelection(sid, selected);
         confirmRef.current?.close();
         if (!res.ok) setError(res.error);
       } catch {

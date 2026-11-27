@@ -1,19 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth, isOwner, signIn } from "@/auth";
+import OwnerAccess from "@/components/OwnerAccess";
 import OwnerGallery from "@/components/OwnerGallery";
 import OwnerSessionPanel from "@/components/OwnerSessionPanel";
 import PhotoGallery from "@/components/PhotoGallery";
 import SessionTabs from "@/components/SessionTabs";
-import { isValidKey, longDate, todayKeyIn } from "@/lib/dates";
+import { longDate, todayKeyIn } from "@/lib/dates";
 import { listImages, type DriveFile } from "@/lib/drive";
-import { getClientSessionRow, getOwnerSessionRow, portalStatus, STATUS_LABEL, studioTimeZone } from "@/lib/portal";
+import {
+  getClientSessionRow,
+  getOwnerSessionRow,
+  isSessionId,
+  portalStatus,
+  STATUS_LABEL,
+  studioTimeZone,
+} from "@/lib/portal";
 
 export const dynamic = "force-dynamic";
 
-export default async function SessionPage({ params }: { params: Promise<{ date: string }> }) {
-  const { date } = await params;
-  if (!isValidKey(date)) notFound();
+export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!isSessionId(id)) notFound();
 
   const session = await auth();
   const email = session?.user?.email?.toLowerCase();
@@ -25,7 +33,7 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: `/client-portal/${date}` });
+            await signIn("google", { redirectTo: `/client-portal/${id}` });
           }}
         >
           <button type="submit" className="btn">Masuk dengan Google</button>
@@ -37,8 +45,9 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
   const today = todayKeyIn(studioTimeZone());
 
   if (await isOwner()) {
-    const o = await getOwnerSessionRow(date);
-    if (!o) notFound();
+    const found = await getOwnerSessionRow(id);
+    if (!found) notFound();
+    const { row: o, members } = found;
     const oStatus = portalStatus(o.date, today, Boolean(o.driveFolderId), o.stage);
     return (
       <main className="wrap portal">
@@ -47,12 +56,12 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
         </p>
         <header className="session-head">
           <span className={`pill s-${oStatus}`}>{STATUS_LABEL[oStatus]}</span>
-          <h1>{o.title || "Sesi foto"}</h1>
+          <h1>{o.title || o.clientName || "Sesi foto"}</h1>
           <p className="lede">
             {longDate(o.date)}
+            {o.time ? ` · ${o.time}` : ""}
             {o.location ? ` · ${o.location}` : ""}
             {o.clientName ? ` · ${o.clientName}` : ""}
-            {o.clientEmail ? ` · ${o.clientEmail}` : ""}
           </p>
           {o.selectionSavedAt ? (
             <p className="muted">
@@ -61,10 +70,14 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
           ) : null}
         </header>
         <section>
+          <h2>Akses client</h2>
+          <OwnerAccess id={o.id} claimCode={o.claimCode} members={members} />
+        </section>
+        <section>
           <h2>Atur sesi</h2>
           <OwnerSessionPanel
             key={`${o.stage}|${o.driveFolderId}|${o.editedFolderId}|${o.maxSelect}`}
-            date={o.date}
+            id={o.id}
             stage={o.stage}
             driveFolderId={o.driveFolderId}
             editedFolderId={o.editedFolderId}
@@ -75,7 +88,7 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
           <h2>Foto</h2>
           <OwnerGallery
             key={`${o.driveFolderId}|${o.editedFolderId}|${o.selection.length}`}
-            date={o.date}
+            sid={o.id}
             selection={o.selection}
             hasRaw={Boolean(o.driveFolderId)}
             hasEdited={Boolean(o.editedFolderId)}
@@ -86,7 +99,7 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
     );
   }
 
-  const row = await getClientSessionRow(date, email);
+  const row = await getClientSessionRow(id, email);
   if (!row) notFound();
 
   const status = portalStatus(row.date, today, Boolean(row.driveFolderId), row.stage);
@@ -123,6 +136,7 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
         <h1>{row.title || "Sesi foto"}</h1>
         <p className="lede">
           {longDate(row.date)}
+          {row.time ? ` · ${row.time}` : ""}
           {row.location ? ` · ${row.location}` : ""}
           {row.clientName ? ` · ${row.clientName}` : ""}
         </p>
@@ -141,29 +155,24 @@ export default async function SessionPage({ params }: { params: Promise<{ date: 
           <>
             <p className="lede">
               Pilih foto yang ingin diedit, maksimal {row.maxSelect} foto. Klik foto untuk memilih, atau Perbesar untuk
-              melihat lebih jelas. Setelah dikirim, pilihan dikunci.
+              melihat lebih jelas. Setelah dikirim, pilihan dikunci. Jika sesi ini dimiliki bersama, pilihan berlaku
+              untuk semua orang di sesi ini.
             </p>
-            <PhotoGallery
-              date={row.date}
-              files={files}
-              mode="select"
-              max={row.maxSelect}
-              initialSelected={selectedIds}
-            />
+            <PhotoGallery sid={row.id} files={files} mode="select" max={row.maxSelect} initialSelected={selectedIds} />
           </>
         )
       ) : status === "processing" ? (
         <>
           <p className="lede">
-            Pilihanmu sudah dikirim ({row.selection.length} foto). Fotografer sedang mengedit foto-foto ini. Semua foto
-            asli tetap bisa dilihat dan diunduh di bawah, foto pilihanmu diberi nomor.
+            Pilihan sudah dikirim ({row.selection.length} foto). Fotografer sedang mengedit foto-foto ini. Semua foto
+            asli tetap bisa dilihat dan diunduh di bawah, foto pilihan diberi nomor.
           </p>
           <h2>Foto asli (JPG)</h2>
-          <PhotoGallery date={row.date} files={files} mode="view" initialSelected={selectedIds} download />
+          <PhotoGallery sid={row.id} files={files} mode="view" initialSelected={selectedIds} download />
         </>
       ) : (
         <SessionTabs
-          date={row.date}
+          sid={row.id}
           edited={edited.map((f) => ({ id: f.id, name: f.name }))}
           editedFailed={editedFailed}
           selectedIds={row.selection.map((x) => x.id)}
