@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { isOwner } from "@/auth";
 import { supabase } from "@/lib/supabase";
-import { isGoogleDocUrl, isValidKey } from "@/lib/dates";
+import { isGoogleDocUrl, isValidKey, longDate } from "@/lib/dates";
+import { notify } from "@/lib/notify";
 import { isSessionId, newClaimCode } from "@/lib/portal";
 import type { DayStatus } from "@/lib/types";
 
@@ -134,10 +135,19 @@ export async function saveSession(input: SaveSessionInput): Promise<(Result & { 
   }
 
   if (email) {
-    const { error } = await db
+    const { data: added, error } = await db
       .from("session_members")
-      .upsert({ session_id: id, email, source: "email" }, { onConflict: "session_id,email", ignoreDuplicates: true });
+      .upsert({ session_id: id, email, source: "email" }, { onConflict: "session_id,email", ignoreDuplicates: true })
+      .select("session_id");
     if (error) return { ok: false, error: "Sesi tersimpan, tetapi email gagal ditambahkan sebagai anggota." };
+    if (added?.length) {
+      await notify([email], {
+        kind: "session",
+        title: "Kamu ditambahkan ke sebuah sesi",
+        body: `Sesi ${fields.title || longDate(date)} sekarang ada di Client Portal-mu.`,
+        link: `/client-portal/${id}`,
+      });
+    }
   }
 
   refresh();

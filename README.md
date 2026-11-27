@@ -105,6 +105,39 @@ Saat kamu (akun `OWNER_EMAIL`) membuka menu **Client Portal**, yang tampil adala
 - **Galeri:** tab Pilihan client (dengan tombol Salin nama file), Hasil edit, dan Foto asli. Foto di tab Hasil edit dan Foto asli baru diminta ke Drive saat tab dibuka. Semua bisa diperbesar dan diunduh.
 - Tahap Selesai hanya bisa disimpan jika folder hasil edit sudah ditautkan.
 
+## Portfolio
+
+Halaman **Portfolio** berisi kumpulan album (satu album per acara atau sesi). Fotonya diambil dari Google Drive, dan pengunjung hanya bisa melihatnya.
+
+**Untuk pemilik** (saat login dengan akun `OWNER_EMAIL`):
+- Klik **Tambah album**, isi judul, tanggal acara (opsional), deskripsi (opsional), dan tempel tautan folder Drive berisi foto. Centang **Tampilkan album ini di halaman Portfolio** agar tampil ke pengunjung. Tanpa centang, album menjadi draf yang hanya terlihat olehmu.
+- **Thumbnail:** buka album, klik satu foto, lalu **Jadikan thumbnail**. Tanpa pilihan, thumbnail memakai foto pertama di folder. Mengganti folder mereset thumbnail.
+- **Urutan:** tombol panah di pojok kanan atas kartu album menggeser album ke depan atau ke belakang. Album baru muncul paling depan.
+- **Atur album** di halaman album: ubah judul, folder, tampil atau draf, atau hapus album. Menghapus album tidak menghapus foto di Drive.
+- Folder harus berada di dalam folder Drive yang sudah dibagikan ke service account (sama seperti galeri client).
+
+**Database:** database baru cukup memakai `supabase/schema.sql`. Database lama jalankan `supabase/upgrade-portfolio.sql` sekali.
+
+**Soal "tidak bisa diunduh":** website tidak menyediakan tombol unduh, tidak menyajikan file asli (hanya gambar ukuran tampilan, maksimal 1600 px), serta mematikan klik kanan dan seret gambar. Namun siapa pun yang bisa melihat sebuah gambar di layar tetap bisa mengambil tangkapan layar atau mengambil gambar ukuran tampilan lewat alat pengembang browser. Tidak ada cara teknis yang sepenuhnya mencegah itu. Karena yang tersedia hanya ukuran tampilan, hasilnya tidak sebaik file asli. Jika perlu perlindungan lebih, tambahkan watermark pada foto yang kamu taruh di folder portfolio.
+
+## Akun pengguna, tema, dan notifikasi
+
+**Login dan profil.** Tombol Login membuka halaman masuk dengan Google. Pengguna yang baru pertama kali masuk diarahkan ke `/selamat-datang` untuk mengisi nama tampilan (wajib, 2 sampai 40 karakter) dan kontak (opsional). Setelah itu tombol Login di navbar berganti menjadi nama tampilan dengan panah dropdown. Profil bisa diubah kapan saja di `/profil`. Pengguna lama yang belum punya profil tetap memakai nama Google mereka, dan di menu muncul tanda **Lengkapi**.
+
+**Menu pengguna.** Berisi Profil saya, pilihan tampilan **Terang** atau **Gelap**, dan Keluar. Pilihan tema disimpan di browser (localStorage), jadi berlaku per browser dan tidak ikut pindah ke perangkat lain.
+
+**Notifikasi.** Ikon lonceng di sebelah menu pengguna menampilkan jumlah yang belum dibaca dan daftar 30 terbaru. Jumlahnya diperbarui tiap menit selama tab terbuka. Notifikasi dibuat hanya untuk kejadian berikut:
+
+- Fotografer menambahkan akunmu ke sebuah sesi (lewat email atau kode).
+- Fotografer mengubah status sesi (Diproses, Selesai, atau dibuka kembali).
+- Folder foto asli pertama kali ditautkan ke sesimu.
+- Anggota lain dalam sesi yang sama mengirim pilihan foto.
+- Untuk pemilik: client mengirim pilihan foto atau mengklaim sesi dengan kode.
+
+Notifikasi yang sudah dibaca dan lebih tua dari 30 hari dibersihkan otomatis.
+
+**Database.** Fitur ini butuh tabel `profiles` dan `notifications`. Instalasi baru sudah termasuk di `supabase/schema.sql`. Untuk database yang sudah berjalan, jalankan `supabase/upgrade-profiles-notifications.sql` di SQL Editor sebelum deploy.
+
 ## Deploy ke Vercel
 
 1. Push proyek ini ke GitHub, lalu import di https://vercel.com/new.
@@ -123,14 +156,22 @@ app/api/drive/[fileId]  menyajikan foto dari Drive setelah cek akses
 app/portal-actions.ts   klaim kode, pilihan foto, kelola anggota dan kode (pemilik)
 lib/drive.ts            klien Google Drive (service account)
 lib/portal.ts           data sesi dan status
-app/pricelist, app/portfolio   kerangka halaman, isi menyusul
-app/login/page.tsx      login Google; client melihat sesinya, pemilik ke kalender
+app/portfolio          daftar album, /portfolio/[id] galeri album, /portfolio/new (pemilik)
+app/api/portfolio       foto portfolio khusus dilihat (tanpa file asli)
+app/pricelist           kerangka halaman, isi menyusul
+app/login/page.tsx      form login Google
+app/selamat-datang      isi nama tampilan dan kontak setelah login pertama
+app/profil              ubah profil
+app/user-actions.ts     profil dan notifikasi (server actions)
+lib/notify.ts           pembuat notifikasi
+components/UserMenu.tsx, NotificationBell.tsx   menu pengguna dan lonceng
 components/SiteNav.tsx  navbar: Home, Kalender, Pricelist, Portfolio, Client Portal, Login
 app/actions.ts          simpan tanggal dan pengaturan (server actions, dicek ke pemilik)
 auth.ts                 login Google, dibatasi ke OWNER_EMAIL
 lib/data.ts             query Supabase
 components/             kalender, form pemilik, form pengaturan
 supabase/schema.sql     tabel dan RLS
+supabase/upgrade-*.sql  migrasi untuk database yang sudah berjalan
 ```
 
 ## Catatan

@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { auth, isOwner } from "@/auth";
 import { normalizeCode } from "@/lib/claim";
-import { parseDriveFolderId } from "@/lib/dates";
+import { longDate, parseDriveFolderId } from "@/lib/dates";
 import { listImages } from "@/lib/drive";
-import { getAccessRow, getClientSessionRow, isSessionId, newClaimCode } from "@/lib/portal";
+import { memberEmails, notify, ownerEmail } from "@/lib/notify";
+import { nameFor } from "@/lib/profile";
+import { getAccessRow, getClientSessionRow, isSessionId, newClaimCode, sessionLabel } from "@/lib/portal";
 import { supabase } from "@/lib/supabase";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -24,6 +26,7 @@ export async function saveSelection(sessionId: string, fileIds: string[]): Promi
   if (!email) return { ok: false, error: "Silakan login terlebih dahulu." };
   if (!isSessionId(sessionId) || !Array.isArray(fileIds)) return { ok: false, error: "Permintaan tidak valid." };
 
+  let sent: { count: number; label: string } | null = null;
   try {
     const row = await getClientSessionRow(sessionId, email);
     if (!row) return { ok: false, error: "Sesi tidak ditemukan." };
@@ -52,9 +55,20 @@ export async function saveSelection(sessionId: string, fileIds: string[]): Promi
       .select("id");
     if (error) return { ok: false, error: "Pilihan belum tersimpan. Coba lagi sebentar lagi." };
     if (!data?.length) return { ok: false, error: "Pilihan untuk sesi ini sudah dikirim." };
+    sent = { count: selection.length, label: row.title || longDate(row.date) };
   } catch (err) {
     console.error(err);
     return { ok: false, error: "Pilihan belum tersimpan. Coba lagi sebentar lagi." };
+  }
+
+  if (sent) {
+    const who = await nameFor(email);
+    const link = `/client-portal/${sessionId}`;
+    const owner = ownerEmail();
+    // Anggota lain di sesi yang sama dan pemilik diberi tahu. Pelaku sendiri tidak.
+    const others = (await memberEmails(sessionId)).filter((m) => m !== owner);
+    await notify(others, { kind: "selection", title: "Pilihan foto sudah dikirim", body: `${who} mengirim ${sent.count} foto pilihan untuk ${sent.label}.`, link }, email);
+    await notify([owner], { kind: "selection", title: "Client mengirim pilihan foto", body: `${who} memilih ${sent.count} foto untuk ${sent.label}.`, link }, email);
   }
 
   refresh(sessionId);
@@ -102,7 +116,7 @@ export async function claimSession(rawCode: string): Promise<{ ok: true; id: str
     if (cErr) throw cErr;
     if ((count ?? 0) >= 8) return { ok: false, error: "Terlalu banyak percobaan yang salah. Coba lagi 15 menit lagi." };
 
-    const { data, error } = await db.from("sessions").select("id").eq("claim_code", code).maybeSingle();
+    const { data, error } = await db.from("sessions").select("id,title,date").eq("claim_code", code).maybeSingle();
     if (error) throw error;
 
     // Catatan lama dibersihkan sekalian agar tabel tidak menumpuk.
@@ -113,11 +127,18 @@ export async function claimSession(rawCode: string): Promise<{ ok: true; id: str
       return { ok: false, error: "Kode tidak ditemukan. Periksa lagi penulisannya atau tanyakan ke fotografer." };
     }
     const id = String((data as Record<string, unknown>).id);
-    const { error: mErr } = await db
+    const { data: added, error: mErr } = await db
       .from("session_members")
-      .upsert({ session_id: id, email, source: "kode" }, { onConflict: "session_id,email", ignoreDuplicates: true });
+      .upsert({ session_id: id, email, source: "kode" }, { onConflict: "session_id,email", ignoreDuplicates: true })
+      .select("session_id");
     if (mErr) throw mErr;
     await db.from("claim_attempts").insert({ email, ok: true });
+    if (added?.length) {
+      // Pemilik diberi tahu hanya saat akun benar-benar baru bergabung.
+      const row = data as Record<string, unknown>;
+      const label = String(row.title ?? "") || longDate(String(row.date));
+      await notify([ownerEmail()], { kind: "claim", title: "Sesi diklaim", body: `${await nameFor(email)} menambahkan ${label} ke akunnya.`, link: `/client-portal/${id}` }, email);
+    }
     refresh(id);
     return { ok: true, id };
   } catch (err) {
@@ -175,6 +196,7 @@ export async function saveSessionAdmin(input: OwnerSessionInput): Promise<Result
     return { ok: false, error: "Tautkan folder hasil edit dulu sebelum menandai sesi Selesai." };
   }
 
+  const { data: before } = await supabase().from("sessions").select("title,date,stage,drive_folder_id").eq("id", id).maybeSingle();
   const { data, error } = await supabase()
     .from("sessions")
     .update({
@@ -188,6 +210,24 @@ export async function saveSessionAdmin(input: OwnerSessionInput): Promise<Result
     .select("id");
   if (error) return { ok: false, error: "Gagal menyimpan. Coba lagi sebentar lagi." };
   if (!data?.length) return { ok: false, error: "Sesi tidak ditemukan." };
+
+  // Beri tahu anggota sesi hanya jika ada perubahan yang berarti bagi mereka.
+  if (before) {
+    const b = before as Record<string, unknown>;
+    const label = String(b.title ?? "") || longDate(String(b.date));
+    const link = `/client-portal/${id}`;
+    const oldStage = String(b.stage ?? "");
+    const hadFolder = Boolean(b.drive_folder_id);
+    let msg: { title: string; body: string } | null = null;
+    if (input.stage !== oldStage) {
+      if (input.stage === "selesai") msg = { title: "Foto hasil edit sudah siap", body: `Foto hasil edit ${label} sudah bisa dilihat dan diunduh.` };
+      else if (input.stage === "proses") msg = { title: "Status sesi: Diproses", body: `Foto pilihan ${label} sedang diedit.` };
+      else msg = { title: "Pilihan foto dibuka kembali", body: `Kamu bisa memilih foto untuk ${label} lagi.` };
+    } else if (!hadFolder && driveId && input.stage === "") {
+      msg = { title: "Foto siap dipilih", body: `Foto ${label} sudah tersedia. Silakan pilih foto yang ingin diedit.` };
+    }
+    if (msg) await notify(await memberEmails(id), { kind: "status", ...msg, link });
+  }
 
   refresh(id);
   return { ok: true };
@@ -215,10 +255,14 @@ export async function addMember(id: string, rawEmail: string): Promise<Result> {
   const email = String(rawEmail ?? "").trim().toLowerCase().slice(0, 120);
   if (!isSessionId(id)) return { ok: false, error: "Sesi tidak valid." };
   if (!EMAIL.test(email)) return { ok: false, error: "Email tidak valid. Contoh: nama@gmail.com" };
-  const { error } = await supabase()
+  const { data: added, error } = await supabase()
     .from("session_members")
-    .upsert({ session_id: id, email, source: "email" }, { onConflict: "session_id,email", ignoreDuplicates: true });
+    .upsert({ session_id: id, email, source: "email" }, { onConflict: "session_id,email", ignoreDuplicates: true })
+    .select("session_id");
   if (error) return { ok: false, error: "Gagal menambah anggota. Coba lagi sebentar lagi." };
+  if (added?.length) {
+    await notify([email], { kind: "session", title: "Kamu ditambahkan ke sebuah sesi", body: `Sesi ${await sessionLabel(id)} sekarang ada di Client Portal-mu.`, link: `/client-portal/${id}` });
+  }
   refresh(id);
   return { ok: true };
 }

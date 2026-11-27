@@ -58,7 +58,7 @@ export default async function ClientPortalPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: "/client-portal" });
+            await signIn("google", { redirectTo: "/selamat-datang?next=/client-portal" });
           }}
         >
           <button type="submit" className="btn">Masuk dengan Google</button>

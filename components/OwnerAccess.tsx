@@ -5,7 +5,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { addMember, regenerateClaimCode, removeMember } from "@/app/portal-actions";
 import { formatCode } from "@/lib/claim";
 
-type Member = { email: string; source: "kode" | "email" | "pemilik" };
+type Member = { email: string; source: "kode" | "email" | "pemilik"; name: string; contact: string };
 
 const SOURCE: Record<Member["source"], string> = {
   kode: "lewat kode",
@@ -89,8 +89,10 @@ export default function OwnerAccess({ id, claimCode, members }: { id: string; cl
           {members.map((m) => (
             <li key={m.email}>
               <span className="members-main">
-                <strong>{m.email}</strong>
-                <span className="muted">{SOURCE[m.source]}</span>
+                <strong>{m.name || m.email}</strong>
+                <span className="muted">
+                  {[m.name ? m.email : "", m.contact, SOURCE[m.source]].filter(Boolean).join(" · ")}
+                </span>
               </span>
               <button type="button" className="btn ghost" disabled={pending} onClick={() => run(() => removeMember(id, m.email))}>
                 Hapus akses

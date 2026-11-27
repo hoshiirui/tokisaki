@@ -33,7 +33,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
         <form
           action={async () => {
             "use server";
-            await signIn("google", { redirectTo: `/client-portal/${id}` });
+            await signIn("google", { redirectTo: `/selamat-datang?next=/client-portal/${id}` });
           }}
         >
           <button type="submit" className="btn">Masuk dengan Google</button>

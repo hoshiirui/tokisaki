@@ -63,6 +63,48 @@ create table if not exists claim_attempts (
 );
 create index if not exists claim_attempts_email_idx on claim_attempts (email, at);
 
+
+-- Album portfolio. Foto diambil dari folder Google Drive. Hanya dibaca server.
+create table if not exists portfolio_albums (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text not null default '',
+  event_date date,
+  drive_folder_id text not null default '',
+  cover_file_id text not null default '',
+  position int not null default 0,
+  published boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists portfolio_albums_position_idx on portfolio_albums (position);
+alter table portfolio_albums enable row level security;
+
+
+-- Profil pengguna: nama tampilan dan kontak (opsional), diisi saat pertama kali login.
+create table if not exists profiles (
+  email text primary key,
+  display_name text not null,
+  contact text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table profiles enable row level security;
+
+-- Notifikasi untuk pengguna: sesi baru, perubahan status, dan seterusnya.
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  kind text not null default 'info',
+  title text not null,
+  body text not null default '',
+  link text not null default '',
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+create index if not exists notifications_email_idx on notifications (email, created_at desc);
+alter table notifications enable row level security;
+
 -- Kunci semua tabel dari akses langsung lewat API publik Supabase.
 -- Aplikasi membaca dan menulis hanya dari server Next.js dengan kunci service_role,
 -- yang tidak terkena aturan ini.

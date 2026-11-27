@@ -1,7 +1,16 @@
 import Link from "next/link";
-import { auth, signOut } from "@/auth";
+import { auth, isOwner, signOut } from "@/auth";
 import { getSettings } from "@/lib/data";
+import { countUnread } from "@/lib/notify";
+import { getProfile } from "@/lib/profile";
 import NavLinks from "./NavLinks";
+import NotificationBell from "./NotificationBell";
+import UserMenu from "./UserMenu";
+
+async function signOutAction() {
+  "use server";
+  await signOut({ redirectTo: "/" });
+}
 
 export default async function SiteNav() {
   let studio = "Studio Foto";
@@ -12,19 +21,34 @@ export default async function SiteNav() {
   }
 
   const session = await auth();
+  const email = session?.user?.email?.toLowerCase();
 
-  const authSlot = session?.user ? (
-    <form
-      action={async () => {
-        "use server";
-        await signOut({ redirectTo: "/" });
-      }}
-    >
-      <button type="submit" className="btn ghost">Keluar</button>
-    </form>
-  ) : (
-    <Link href="/login" className="btn ghost">Login</Link>
-  );
+  let authSlot;
+  if (email) {
+    let displayName = "";
+    let profileKnown = true;
+    try {
+      displayName = (await getProfile(email))?.displayName ?? "";
+    } catch {
+      profileKnown = false;
+    }
+    const name = displayName || session?.user?.name || email.split("@")[0];
+    const unread = await countUnread(email);
+    authSlot = (
+      <div className="nav-user">
+        <NotificationBell initialUnread={unread} />
+        <UserMenu
+          name={name}
+          email={email}
+          owner={await isOwner()}
+          needsProfile={profileKnown && !displayName}
+          signOutAction={signOutAction}
+        />
+      </div>
+    );
+  } else {
+    authSlot = <Link href="/login" className="btn ghost">Login</Link>;
+  }
 
   return <NavLinks brand={studio} auth={authSlot} />;
 }

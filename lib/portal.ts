@@ -1,7 +1,8 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { supabase } from "@/lib/supabase";
-import { isValidKey } from "@/lib/dates";
+import { getProfiles } from "@/lib/profile";
+import { isValidKey, longDate } from "@/lib/dates";
 
 export type Stage = "" | "proses" | "selesai";
 export type PortalStatus = "upcoming" | "preparing" | "choose" | "processing" | "done";
@@ -31,7 +32,14 @@ export type SessionRow = {
   selectionSavedAt: string | null;
 };
 
-export type Member = { email: string; source: "kode" | "email" | "pemilik"; createdAt: string };
+export type Member = {
+  email: string;
+  source: "kode" | "email" | "pemilik";
+  createdAt: string;
+  /** Dari profil pengguna, jika sudah mengisi. */
+  name: string;
+  contact: string;
+};
 
 /** Hanya untuk pemilik. */
 export type OwnerSessionRow = SessionRow & { claimCode: string; memberCount: number };
@@ -161,13 +169,33 @@ export async function getOwnerSessionRow(id: string): Promise<{ row: OwnerSessio
     .eq("session_id", id)
     .order("created_at");
   if (err2) throw new Error(`Gagal membaca anggota sesi: ${err2.message}`);
-  const members = ((mem ?? []) as Record<string, unknown>[]).map((m) => ({
+  const list = (mem ?? []) as Record<string, unknown>[];
+  let profiles = new Map<string, { displayName: string; contact: string }>();
+  try {
+    profiles = await getProfiles(list.map((m) => String(m.email)));
+  } catch (err) {
+    console.error(err);
+  }
+  const members = list.map((m) => ({
     email: String(m.email),
+    name: profiles.get(String(m.email))?.displayName ?? "",
+    contact: profiles.get(String(m.email))?.contact ?? "",
     source: (m.source === "email" || m.source === "pemilik" ? m.source : "kode") as Member["source"],
     createdAt: String(m.created_at ?? ""),
   }));
   const r = data as Record<string, unknown>;
   return { row: { ...toRow(r), claimCode: String(r.claim_code ?? ""), memberCount: members.length }, members };
+}
+
+/** Nama sesi untuk teks notifikasi: judulnya, atau tanggalnya jika judul kosong. */
+export async function sessionLabel(id: string): Promise<string> {
+  try {
+    const row = await getAccessRow(id);
+    if (row) return row.title || longDate(row.date);
+  } catch (err) {
+    console.error(err);
+  }
+  return "sesi foto";
 }
 
 export { isValidKey };
