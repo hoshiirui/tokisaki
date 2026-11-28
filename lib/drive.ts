@@ -22,7 +22,7 @@ async function driveFetch(url: string): Promise<Response> {
   return fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
 }
 
-export type DriveFile = { id: string; name: string };
+export type DriveFile = { id: string; name: string; size?: number };
 
 /** Daftar gambar di satu folder, urut nama alami (IMG_2 sebelum IMG_10). */
 export async function listImages(folderId: string, limit = 3000): Promise<DriveFile[]> {
@@ -32,7 +32,7 @@ export async function listImages(folderId: string, limit = 3000): Promise<DriveF
   do {
     const params = new URLSearchParams({
       q: `'${folderId}' in parents and trashed = false and mimeType contains 'image/'`,
-      fields: "nextPageToken,files(id,name)",
+      fields: "nextPageToken,files(id,name,size)",
       pageSize: String(Math.max(1, Math.min(1000, limit - out.length))),
       orderBy: "name_natural",
       supportsAllDrives: "true",
@@ -41,8 +41,8 @@ export async function listImages(folderId: string, limit = 3000): Promise<DriveF
     if (pageToken) params.set("pageToken", pageToken);
     const res = await driveFetch(`${API}/files?${params}`);
     if (!res.ok) throw new Error(`Drive: gagal membaca folder (${res.status})`);
-    const json = (await res.json()) as { files?: DriveFile[]; nextPageToken?: string };
-    for (const f of json.files ?? []) out.push({ id: f.id, name: f.name });
+    const json = (await res.json()) as { files?: { id: string; name: string; size?: string }[]; nextPageToken?: string };
+    for (const f of json.files ?? []) out.push({ id: f.id, name: f.name, size: f.size ? Number(f.size) : undefined });
     pageToken = json.nextPageToken ?? "";
   } while (pageToken && out.length < limit);
   return out;

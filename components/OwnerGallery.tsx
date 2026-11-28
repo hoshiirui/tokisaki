@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { listSessionPhotos } from "@/app/portal-actions";
 import PhotoGallery from "@/components/PhotoGallery";
+import ZipButton from "@/components/ZipButton";
 
 type Photo = { id: string; name: string };
 type Tab = "selection" | "edited" | "raw";
@@ -104,6 +105,12 @@ export default function OwnerGallery({ sid, selection, hasRaw, hasEdited, defaul
         </div>
         <p className="tab-hint">{hint}</p>
       </div>
+
+      {tab === "raw" && hasRaw ? (
+        <div className="zip-row"><ZipButton sid={sid} kind="raw" count={lazy.raw.files?.length} /></div>
+      ) : tab === "edited" && hasEdited ? (
+        <div className="zip-row"><ZipButton sid={sid} kind="edited" count={lazy.edited.files?.length} /></div>
+      ) : null}
 
       <div role="tabpanel" hidden={tab !== "selection"}>
         {selection.length === 0 ? (

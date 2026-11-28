@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { listRawPhotos } from "@/app/portal-actions";
 import PhotoGallery from "@/components/PhotoGallery";
+import ZipButton from "@/components/ZipButton";
 
 type Photo = { id: string; name: string };
 type Tab = "edited" | "raw";
@@ -79,6 +80,14 @@ export default function SessionTabs({ sid, edited, editedFailed, selectedIds, ha
             ? "Klik foto untuk memperbesar dan mengunduh."
             : "Foto yang kamu pilih untuk diedit diberi nomor."}
         </p>
+      </div>
+
+      <div className="zip-row">
+        {tab === "edited" ? (
+          edited.length > 0 ? <ZipButton sid={sid} kind="edited" count={edited.length} /> : null
+        ) : (
+          <ZipButton sid={sid} kind="raw" count={raw?.length} />
+        )}
       </div>
 
       <div role="tabpanel" id="panel-edited" aria-labelledby="tab-edited" hidden={tab !== "edited"}>

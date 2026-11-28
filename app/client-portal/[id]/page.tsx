@@ -5,6 +5,7 @@ import OwnerAccess from "@/components/OwnerAccess";
 import OwnerGallery from "@/components/OwnerGallery";
 import OwnerSessionPanel from "@/components/OwnerSessionPanel";
 import PhotoGallery from "@/components/PhotoGallery";
+import ZipButton from "@/components/ZipButton";
 import SessionTabs from "@/components/SessionTabs";
 import { longDate, todayKeyIn } from "@/lib/dates";
 import { listImages, type DriveFile } from "@/lib/drive";
@@ -158,7 +159,8 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
               melihat lebih jelas. Setelah dikirim, pilihan dikunci. Jika sesi ini dimiliki bersama, pilihan berlaku
               untuk semua orang di sesi ini.
             </p>
-            <PhotoGallery sid={row.id} files={files} mode="select" max={row.maxSelect} initialSelected={selectedIds} />
+            <div className="zip-row"><ZipButton sid={row.id} kind="raw" count={files.length} /></div>
+            <PhotoGallery sid={row.id} files={files} mode="select" max={row.maxSelect} initialSelected={selectedIds} download />
           </>
         )
       ) : status === "processing" ? (
@@ -168,6 +170,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
             asli tetap bisa dilihat dan diunduh di bawah, foto pilihan diberi nomor.
           </p>
           <h2>Foto asli (JPG)</h2>
+          <div className="zip-row"><ZipButton sid={row.id} kind="raw" count={files.length} /></div>
           <PhotoGallery sid={row.id} files={files} mode="view" initialSelected={selectedIds} download />
         </>
       ) : (

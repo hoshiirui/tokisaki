@@ -94,6 +94,10 @@ Status di kartu sesi: **Akan datang**, **Foto disiapkan** (sesi sudah lewat, fol
 
 **Catatan:** thumbnail dimuat bertahap saat di-scroll. Satu sesi dengan ratusan foto bisa terasa lebih lambat daripada layanan galeri khusus, dan foto asli dikirim lewat server sehingga ikut dibatasi batas ukuran respons dan transfer data hosting kamu.
 
+**Unduh semua foto (ZIP).** Di halaman sesi ada tombol **Unduh semua (ZIP)** untuk foto asli dan, setelah status Selesai, untuk hasil edit. Pemilik juga punya tombolnya di tab yang sama. Server menyusun ZIP sambil mengalirkan foto dari Drive satu per satu tanpa kompresi, jadi memori tetap kecil. Aturan aksesnya sama dengan melihat foto. Batasnya: maksimal 2000 foto dan sekitar 3,9 GB per ZIP (lebih dari itu ditolak dengan pesan, dan foto tetap bisa diunduh satu per satu). Fungsi ini diberi batas waktu 300 detik (`maxDuration`); batas efektif mengikuti paket Vercel, jadi folder yang sangat besar bisa terputus di paket gratis.
+
+**Preset untuk foto asli.** Di tampilan perbesar foto asli (JPG) ada deretan preset: Vintage Vibe, All of Everything, Lake, Film Look, Spooky Area, dan Painting of Altalune. Client memilih preset, melihat pratinjau, mengatur intensitas, lalu menekan **Unduh dengan preset**. Semua proses terjadi di browser pengguna, tidak ada beban di server. Hasil unduhan memakai resolusi penuh dengan batas 16 megapiksel (batas canvas iOS), berformat JPG, tanpa data EXIF. Preset tidak tersedia untuk foto hasil edit. Angka preset diambil dari file `.xmp` Lightroom dan disimpan di `lib/presets.ts`; mesin penerapannya ada di `lib/preset-engine.ts`. Ini pendekatan dari angka slider, bukan salinan persis Lightroom. Tidak ikut diterapkan: Texture, Clarity, Sharpness, noise reduction, lens profile, masking (mis. penghalus kulit pada Film Look), Point Color, dan profil kamera. Exposure dipakai separuhnya karena nilai aslinya disetel untuk satu foto tertentu (ubah `EXPOSURE_FACTOR` di `lib/presets.ts` jika perlu).
+
 ## Client Portal untuk pemilik
 
 Saat kamu (akun `OWNER_EMAIL`) membuka menu **Client Portal**, yang tampil adalah semua sesi client, bukan sesi milikmu sendiri.
@@ -153,8 +157,12 @@ app/page.tsx            Home (landing page)
 app/kalender/page.tsx   kalender (server): memuat data sesuai peran
 app/client-portal       daftar sesi client; /client-portal/[id] untuk pilih foto dan hasil edit; klaim kode di halaman daftar
 app/api/drive/[fileId]  menyajikan foto dari Drive setelah cek akses
+app/api/zip/[id]        unduh semua foto satu sesi sebagai ZIP (dialirkan)
 app/portal-actions.ts   klaim kode, pilihan foto, kelola anggota dan kode (pemilik)
 lib/drive.ts            klien Google Drive (service account)
+lib/presets.ts          data preset foto (dari file Lightroom .xmp)
+lib/preset-engine.ts    mesin penerapan preset di browser
+components/PresetBar.tsx  pilihan preset, pratinjau, dan unduhan
 lib/portal.ts           data sesi dan status
 app/portfolio          daftar album, /portfolio/[id] galeri album, /portfolio/new (pemilik)
 app/api/portfolio       foto portfolio khusus dilihat (tanpa file asli)

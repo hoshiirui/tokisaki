@@ -1,5 +1,6 @@
 "use client";
 
+import PresetBar from "@/components/PresetBar";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
 import { saveSelection } from "@/app/portal-actions";
 
@@ -36,6 +37,7 @@ export default function PhotoGallery({ sid, files, mode, initialSelected = [], m
   const viewRef = useRef<View>(FIT);
   const [view, setViewState] = useState<View>(FIT);
   const [hiRes, setHiRes] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const pinch = useRef<{ d: number; s: number } | null>(null);
@@ -139,8 +141,9 @@ export default function PhotoGallery({ sid, files, mode, initialSelected = [], m
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoomTo]);
 
-  // Ganti foto: kembali ke tampilan pas.
+  // Ganti foto: kembali ke tampilan pas dan pratinjau preset foto sebelumnya dibuang.
   useEffect(() => {
+    setPreviewUrl(null);
     setView(FIT);
     setHiRes(false);
   }, [zoom, setView]);
@@ -270,6 +273,7 @@ export default function PhotoGallery({ sid, files, mode, initialSelected = [], m
             <button type="button" className="btn" onClick={() => zoomRef.current?.close()}>Tutup</button>
           </div>
         </div>
+        {download && mode !== "edited" && current ? <PresetBar sid={sid} photo={current} onPreview={setPreviewUrl} /> : null}
         <div
           ref={stageRef}
           className={view.s > 1 ? "photo-stage zoomed" : "photo-stage"}
@@ -280,7 +284,7 @@ export default function PhotoGallery({ sid, files, mode, initialSelected = [], m
         >
           {current ? (
             <img
-              src={src(current.id, hiRes ? 2048 : 1600)}
+              src={previewUrl ?? src(current.id, hiRes ? 2048 : 1600)}
               alt={current.name}
               draggable={false}
               style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }}
